@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Outlines, PerspectiveCamera } from '@react-three/drei'
-import { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import type { PerspectiveCamera as ThreePerspectiveCamera } from 'three'
 
@@ -8,15 +8,21 @@ export const Route = createFileRoute('/')({
   component: App,
 })
 
-function CameraController() {
-  const cameraRef = useRef<ThreePerspectiveCamera | null>(null)
-  const [mouseX, setMouseX] = useState(0)
-  const [mouseY, setMouseY] = useState(0)
-  const [isMouseDown, setIsMouseDown] = useState(false)
+type OrbitTarget = Readonly<[number, number, number]>
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    setMouseX(-(e.clientX / window.innerWidth * 2 - 1))
-    setMouseY((e.clientY / window.innerHeight * 2 - 1))
+interface CameraControllerProps {
+  target: OrbitTarget
+}
+
+function CameraController({ target }: CameraControllerProps) {
+  const cameraRef = useRef<ThreePerspectiveCamera | null>(null)
+  const [mouseX, setMouseX] = useState<number>(0)
+  const [mouseY, setMouseY] = useState<number>(0)
+  const [isMouseDown, setIsMouseDown] = useState<boolean>(false)
+
+  const handleMouseMove = useCallback((event: MouseEvent) => {
+    setMouseX(-(event.clientX / window.innerWidth * 2 - 1))
+    setMouseY(-(event.clientY / window.innerHeight * 2 - 1))
   }, [])
 
   const handleMouseDown = useCallback(() => {
@@ -43,18 +49,19 @@ function CameraController() {
     if (cameraRef.current && isMouseDown) {
       const radius = 10
       const maxVerticalAngle = Math.PI / 3
+      const [targetX, targetY, targetZ] = target
 
-      // Convert cursor deltas into spherical coordinates around the origin
+      // Convert cursor deltas into spherical coordinates around the target point
       const horizontalAngle = mouseX * 2 * Math.PI
-      const verticalAngle = Math.max(-maxVerticalAngle, Math.min(maxVerticalAngle, mouseY * maxVerticalAngle))
+      const clampedVertical = Math.max(-maxVerticalAngle, Math.min(maxVerticalAngle, mouseY * maxVerticalAngle))
 
-      const projectedRadius = Math.cos(verticalAngle) * radius
-      const x = Math.sin(horizontalAngle) * projectedRadius
-      const y = Math.sin(verticalAngle) * radius
-      const z = Math.cos(horizontalAngle) * projectedRadius
+      const projectedRadius = Math.cos(clampedVertical) * radius
+      const x = targetX + Math.sin(horizontalAngle) * projectedRadius
+      const y = targetY + Math.sin(clampedVertical) * radius
+      const z = targetZ + Math.cos(horizontalAngle) * projectedRadius
 
       cameraRef.current.position.set(x, y, z)
-      cameraRef.current.lookAt(0, 0, 0)
+      cameraRef.current.lookAt(targetX, targetY, targetZ)
     }
   })
 
@@ -63,7 +70,7 @@ function CameraController() {
       ref={cameraRef}
       makeDefault
       position={[0, 0, 10]}
-      fov={45}
+      fov={120}
     />
   )
 }
@@ -73,7 +80,7 @@ function App() {
 
   useEffect(() => {
     const updateCanvasHeight = () => {
-      const header = document.querySelector('header')
+      const header = document.querySelector<HTMLElement>('header')
       const headerHeight = header?.getBoundingClientRect().height ?? 0
       setCanvasHeight(Math.max(window.innerHeight - headerHeight, 0))
     }
@@ -91,15 +98,20 @@ function App() {
       }}
     >
       <Canvas style={{ width: '100%', height: '100%' }}>
-        <CameraController />
+        <CameraController target={[0, 0, 0]} />
         <mesh position={[0, 0, 0]}>
           <boxGeometry args={[4, 2, 2]} />
-          <meshToonMaterial color="brown" />
+          <meshToonMaterial color="orange" />
           <Outlines color="black" screenspace thickness={0.15}/>
         </mesh>
         <mesh position={[0, 2.1, 0]}>
           <boxGeometry args={[4, 2, 2]} />
-          <meshToonMaterial color="orange" />
+          <meshToonMaterial color="brown" />
+          <Outlines color="black" screenspace thickness={0.15}/>
+        </mesh>
+        <mesh position={[0, -2.1, 0]}>
+          <boxGeometry args={[4, 2, 2]} />
+          <meshToonMaterial color="red" />
           <Outlines color="black" screenspace thickness={0.15}/>
         </mesh>
         <ambientLight intensity={0.2} />
